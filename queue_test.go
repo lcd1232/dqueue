@@ -132,3 +132,11 @@ func TestNextDuration(t *testing.T) {
 	got = q.nextDuration()
 	assert.WithinDuration(t, now.Add(time.Hour), now.Add(got), 10*time.Millisecond)
 }
+
+func TestCollectEvents(t *testing.T) {
+	q := NewQueue()
+	q.Insert("1", time.Second)
+	q.Insert("2", time.Hour)
+	q.PopCtx(context.Background())
+	require.True(t, q.nextItemTimer.Stop(), "new timer must be created after each item expiration")
+}
