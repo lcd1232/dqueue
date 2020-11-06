@@ -119,3 +119,16 @@ func TestInsertNotify(t *testing.T) {
 	q.Insert("4", 30*time.Minute)
 	require.Len(t, q.nextTimerChanged, 2)
 }
+
+func TestNextDuration(t *testing.T) {
+	q := Queue{}
+	got := q.nextDuration()
+	assert.Equal(t, -1, got)
+	now := time.Now()
+	q.items = append(q.items, item{
+		value:     "1",
+		visibleAt: now.Add(time.Hour),
+	})
+	got = q.nextDuration()
+	assert.WithinDuration(t, now.Add(time.Hour), now.Add(got), 10*time.Millisecond)
+}

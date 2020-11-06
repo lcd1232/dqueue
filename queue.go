@@ -141,6 +141,12 @@ func (q *Queue) popItem(noLock bool) (value interface{}, ok bool) {
 	return value, true
 }
 
+// nextDuration returns duration for the next item.
+// If no items found it returns -1
+func (q *Queue) nextDuration() time.Duration {
+	return 0
+}
+
 func (q *Queue) PopCtx(ctx context.Context) (value interface{}, success bool) {
 	select {
 	case value := <-q.resultCh:
