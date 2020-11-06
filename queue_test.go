@@ -140,3 +140,24 @@ func TestCollectEvents(t *testing.T) {
 	q.PopCtx(context.Background())
 	require.True(t, q.nextItemTimer.Stop(), "new timer must be created after each item expiration")
 }
+
+func TestManyElements(t *testing.T) {
+	q := NewQueue()
+	wg := sync.WaitGroup{}
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func(v int) {
+			defer wg.Done()
+			q.Insert(v, 3*time.Second)
+		}(i)
+	}
+	wg.Wait()
+	resultMap := make(map[int]struct{})
+	for i := 0; i < 10; i++ {
+		value, _ := q.PopCtx(context.Background())
+		v, ok := value.(int)
+		require.True(t, ok)
+		resultMap[v] = struct{}{}
+	}
+	assert.Len(t, resultMap, 10)
+}
