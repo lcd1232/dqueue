@@ -1,0 +1,100 @@
+package dqueue
+
+import (
+	"context"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestInsert(t *testing.T) {
+	q := NewQueue()
+	q.Insert("3", 3*time.Second)
+	q.Insert("2", 2*time.Second)
+	q.Insert("1", time.Second)
+	require.Len(t, q.items, 3)
+	assert.Equal(t, "1", q.items[0].value)
+	assert.Equal(t, "2", q.items[1].value)
+	assert.Equal(t, "3", q.items[2].value)
+}
+
+func TestPop(t *testing.T) {
+	item := "123"
+	q := NewQueue()
+
+	wg := sync.WaitGroup{}
+	wg.Add(2)
+
+	ready := make(chan struct{})
+
+	go func() {
+		wg.Done()
+		wg.Wait()
+		q.Insert(item, time.Second)
+	}()
+
+	go func() {
+		wg.Done()
+		wg.Wait()
+		got, success := q.Pop()
+		require.False(t, success)
+		assert.Nil(t, got)
+		close(ready)
+	}()
+
+	<-ready
+	time.Sleep(time.Second)
+	got, success := q.Pop()
+	require.True(t, success)
+	assert.Equal(t, item, got)
+	assert.Len(t, q.items, 0)
+}
+
+func TestPopCtx(t *testing.T) {
+	item := "123"
+	q := NewQueue()
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+
+	wg := sync.WaitGroup{}
+	wg.Add(2)
+
+	ready := make(chan struct{})
+
+	go func() {
+		wg.Done()
+		wg.Wait()
+		q.Insert(item, 3*time.Second)
+	}()
+
+	go func() {
+		wg.Done()
+		wg.Wait()
+		got, success := q.PopCtx(ctx)
+		require.False(t, success)
+		assert.Nil(t, got)
+		close(ready)
+	}()
+
+	<-ready
+	ctx, cancel = context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	got, success := q.PopCtx(ctx)
+	require.True(t, success)
+	assert.Equal(t, item, got)
+	assert.Len(t, q.items, 0)
+}
+
+func TestPopCtxBlocking(t *testing.T) {
+	q := NewQueue()
+	q.Insert("123", 5*time.Second)
+	now := time.Now()
+	v, success := q.PopCtx(context.Background())
+	ended := time.Now()
+	require.True(t, success)
+	assert.Equal(t, "123", v)
+	assert.WithinDuration(t, now.Add(5*time.Second), ended, 20*time.Millisecond)
+}
