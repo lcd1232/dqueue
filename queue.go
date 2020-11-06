@@ -111,18 +111,12 @@ func (q *Queue) notify(delay time.Duration) {
 }
 
 func (q *Queue) Pop() (value interface{}, success bool) {
-	now := time.Now()
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-	if len(q.items) == 0 {
+	select {
+	case value = <-q.resultCh:
+		return value, true
+	default:
 		return nil, false
 	}
-	v := q.items[0]
-	if now.After(v.visibleAt) {
-		_, _ = q.popItem(true)
-		return v.value, true
-	}
-	return nil, false
 }
 
 func (q *Queue) popItem(noLock bool) (value interface{}, ok bool) {
