@@ -57,8 +57,8 @@ func (q *Queue) collectEvents() {
 			fmt.Println("triggered next item timer", time.Now().String())
 			if value, ok := q.popItem(false); ok {
 				q.resultCh <- value
-				/*q.nextItemTimer.Stop()
-				q.nextItemTimer = time.NewTimer(q.nextDuration())*/
+				q.nextItemTimer.Stop()
+				q.nextItemTimer = time.NewTimer(q.nextDuration())
 			}
 		case d := <-q.nextTimerChanged:
 			fmt.Println("triggered next item timer changed", time.Now().String())
