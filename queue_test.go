@@ -123,7 +123,7 @@ func TestInsertNotify(t *testing.T) {
 func TestNextDuration(t *testing.T) {
 	q := Queue{}
 	got := q.nextDuration()
-	assert.Equal(t, -1, got)
+	assert.Equal(t, time.Duration(-1), got)
 	now := time.Now()
 	q.items = append(q.items, item{
 		value:     "1",

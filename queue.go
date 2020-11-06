@@ -144,7 +144,12 @@ func (q *Queue) popItem(noLock bool) (value interface{}, ok bool) {
 // nextDuration returns duration for the next item.
 // If no items found it returns -1
 func (q *Queue) nextDuration() time.Duration {
-	return 0
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+	if len(q.items) == 0 {
+		return -1
+	}
+	return -1 * time.Since(q.items[0].visibleAt)
 }
 
 func (q *Queue) PopCtx(ctx context.Context) (value interface{}, success bool) {
