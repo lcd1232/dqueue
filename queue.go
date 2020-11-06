@@ -67,10 +67,6 @@ func (q *Queue) collectEvents() {
 }
 
 func (q *Queue) Insert(value interface{}, delay time.Duration) {
-	defer func() {
-		q.notify(delay)
-	}()
-
 	visibleAt := time.Now().Add(delay)
 
 	v := item{
@@ -80,6 +76,7 @@ func (q *Queue) Insert(value interface{}, delay time.Duration) {
 
 	if len(q.items) == 0 {
 		q.items = append(q.items, v)
+		q.notify(delay)
 
 		return
 	}
@@ -93,6 +90,10 @@ func (q *Queue) Insert(value interface{}, delay time.Duration) {
 			copy(q.items[i+1:], q.items[i:])
 			q.items[i] = v
 			q.mutex.Unlock()
+			if i == 0 {
+				q.notify(delay)
+			}
+
 			return
 		}
 	}
