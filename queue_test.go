@@ -40,7 +40,7 @@ func TestPop(t *testing.T) {
 		wg.Done()
 		wg.Wait()
 		got, success := q.Pop()
-		require.False(t, success)
+		assert.False(t, success)
 		assert.Nil(t, got)
 		close(ready)
 	}()
@@ -74,7 +74,7 @@ func TestPopCtx(t *testing.T) {
 		wg.Done()
 		wg.Wait()
 		got, success := q.PopCtx(ctx)
-		require.False(t, success)
+		assert.False(t, success)
 		assert.Nil(t, got)
 		close(ready)
 	}()
@@ -96,5 +96,26 @@ func TestPopCtxBlocking(t *testing.T) {
 	ended := time.Now()
 	require.True(t, success)
 	assert.Equal(t, "123", v)
-	assert.WithinDuration(t, now.Add(5*time.Second), ended, 20*time.Millisecond)
+	assert.WithinDuration(t, now.Add(5*time.Second), ended, 200*time.Millisecond)
+}
+
+func TestInsertNotify(t *testing.T) {
+	q := Queue{
+		nextTimerChanged: make(chan time.Duration, 10),
+	}
+
+	q.Insert("1", time.Hour)
+	require.Len(t, q.nextTimerChanged, 1)
+
+	// at the end of the queue
+	q.Insert("2", 10*time.Hour)
+	require.Len(t, q.nextTimerChanged, 1)
+
+	// at the middle
+	q.Insert("3", 5*time.Hour)
+	require.Len(t, q.nextTimerChanged, 1)
+
+	// at the beginning
+	q.Insert("4", 30*time.Minute)
+	require.Len(t, q.nextTimerChanged, 2)
 }

@@ -51,15 +51,15 @@ func (q *Queue) collectEvents() {
 	for {
 		select {
 		case <-q.ctx.Done():
-			fmt.Println("triggered context")
+			fmt.Println("triggered context", time.Now().String())
 			return
 		case <-q.nextItemTimer.C:
-			fmt.Println("triggered next item timer")
+			fmt.Println("triggered next item timer", time.Now().String())
 			if value, ok := q.popItem(false); ok {
 				q.resultCh <- value
 			}
 		case d := <-q.nextTimerChanged:
-			fmt.Println("triggered next item timer changed")
+			fmt.Println("triggered next item timer changed", time.Now().String())
 			q.nextItemTimer.Stop()
 			q.nextItemTimer = time.NewTimer(d)
 		}
@@ -143,10 +143,10 @@ func (q *Queue) popItem(noLock bool) (value interface{}, ok bool) {
 func (q *Queue) PopCtx(ctx context.Context) (value interface{}, success bool) {
 	select {
 	case value := <-q.resultCh:
-		fmt.Println("got value")
+		fmt.Println("got value", time.Now().String())
 		return value, true
 	case <-ctx.Done():
-		fmt.Println("got pop deadline")
+		fmt.Println("got pop deadline", time.Now().String())
 		return nil, false
 	}
 }
