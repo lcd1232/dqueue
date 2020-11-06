@@ -96,7 +96,7 @@ func TestPopCtxBlocking(t *testing.T) {
 	ended := time.Now()
 	require.True(t, success)
 	assert.Equal(t, "123", v)
-	assert.WithinDuration(t, now.Add(5*time.Second), ended, 200*time.Millisecond)
+	assert.WithinDuration(t, now, ended, 5*time.Second)
 }
 
 func TestInsertNotify(t *testing.T) {
