@@ -51,7 +51,6 @@ func (q *Queue) collectEvents() {
 	for {
 		select {
 		case <-q.ctx.Done():
-			fmt.Println("triggered context", time.Now().String())
 			return
 		case <-q.nextItemTimer.C:
 			fmt.Println("triggered next item timer", time.Now().String())
@@ -61,7 +60,6 @@ func (q *Queue) collectEvents() {
 				q.nextItemTimer = time.NewTimer(q.nextDuration())
 			}
 		case d := <-q.nextTimerChanged:
-			fmt.Println("triggered next item timer changed", time.Now().String())
 			q.nextItemTimer.Stop()
 			q.nextItemTimer = time.NewTimer(d)
 		}
@@ -119,7 +117,8 @@ func (q *Queue) Pop() (value interface{}, success bool) {
 	}
 }
 
-func (q *Queue) popItem(noLock bool) (value interface{}, ok bool) {
+// popItem pops item from items and return value if deadline pass
+func (q *Queue) popItem(noLock bool) (interface{}, bool) {
 	if !noLock {
 		q.mutex.Lock()
 		defer q.mutex.Unlock()
@@ -129,12 +128,16 @@ func (q *Queue) popItem(noLock bool) (value interface{}, ok bool) {
 		return nil, false
 	}
 
-	value = q.items[0].value
+	v := q.items[0]
+	now := time.Now()
+	if v.visibleAt.After(now) {
+		return nil, false
+	}
 	copy(q.items[0:], q.items[1:])
 	q.items[len(q.items)-1] = item{}
 	q.items = q.items[:len(q.items)-1]
 
-	return value, true
+	return v.value, true
 }
 
 // nextDuration returns duration for the next item.

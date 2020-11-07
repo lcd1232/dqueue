@@ -46,7 +46,7 @@ func TestPop(t *testing.T) {
 	}()
 
 	<-ready
-	time.Sleep(time.Second)
+	time.Sleep(time.Second + 100*time.Millisecond)
 	got, success := q.Pop()
 	require.True(t, success)
 	assert.Equal(t, item, got)
@@ -160,4 +160,18 @@ func TestManyElements(t *testing.T) {
 		resultMap[v] = struct{}{}
 	}
 	assert.Len(t, resultMap, 10)
+}
+
+func TestPopItem(t *testing.T) {
+	q := Queue{
+		nextTimerChanged: make(chan time.Duration, 10),
+	}
+	q.Insert("1", 5*time.Second)
+	value, ok := q.popItem(false)
+	require.False(t, ok)
+	assert.Nil(t, value)
+	time.Sleep(5 * time.Second)
+	value, ok = q.popItem(false)
+	require.True(t, ok)
+	assert.Equal(t, "1", value)
 }
