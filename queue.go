@@ -2,7 +2,6 @@ package dqueue
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 )
@@ -18,8 +17,6 @@ type Queue struct {
 	cancelCtx context.CancelFunc
 
 	resultCh chan interface{}
-
-	listeners int
 }
 
 type item struct {
@@ -51,15 +48,14 @@ func (q *Queue) collectEvents() {
 	for {
 		select {
 		case <-q.ctx.Done():
-			fmt.Println("triggered context")
 			return
 		case <-q.nextItemTimer.C:
-			fmt.Println("triggered next item timer")
 			if value, ok := q.popItem(false); ok {
 				q.resultCh <- value
+				q.nextItemTimer.Stop()
+				q.nextItemTimer = time.NewTimer(q.nextDuration())
 			}
 		case d := <-q.nextTimerChanged:
-			fmt.Println("triggered next item timer changed")
 			q.nextItemTimer.Stop()
 			q.nextItemTimer = time.NewTimer(d)
 		}
@@ -67,10 +63,6 @@ func (q *Queue) collectEvents() {
 }
 
 func (q *Queue) Insert(value interface{}, delay time.Duration) {
-	defer func() {
-		q.notify(delay)
-	}()
-
 	visibleAt := time.Now().Add(delay)
 
 	v := item{
@@ -80,6 +72,7 @@ func (q *Queue) Insert(value interface{}, delay time.Duration) {
 
 	if len(q.items) == 0 {
 		q.items = append(q.items, v)
+		q.notify(delay)
 
 		return
 	}
@@ -93,6 +86,10 @@ func (q *Queue) Insert(value interface{}, delay time.Duration) {
 			copy(q.items[i+1:], q.items[i:])
 			q.items[i] = v
 			q.mutex.Unlock()
+			if i == 0 {
+				q.notify(delay)
+			}
+
 			return
 		}
 	}
@@ -108,21 +105,16 @@ func (q *Queue) notify(delay time.Duration) {
 }
 
 func (q *Queue) Pop() (value interface{}, success bool) {
-	now := time.Now()
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-	if len(q.items) == 0 {
+	select {
+	case value = <-q.resultCh:
+		return value, true
+	default:
 		return nil, false
 	}
-	v := q.items[0]
-	if now.After(v.visibleAt) {
-		_, _ = q.popItem(true)
-		return v.value, true
-	}
-	return nil, false
 }
 
-func (q *Queue) popItem(noLock bool) (value interface{}, ok bool) {
+// popItem pops item from items and return value if deadline pass
+func (q *Queue) popItem(noLock bool) (interface{}, bool) {
 	if !noLock {
 		q.mutex.Lock()
 		defer q.mutex.Unlock()
@@ -132,21 +124,34 @@ func (q *Queue) popItem(noLock bool) (value interface{}, ok bool) {
 		return nil, false
 	}
 
-	value = q.items[0].value
+	v := q.items[0]
+	now := time.Now()
+	if v.visibleAt.After(now) {
+		return nil, false
+	}
 	copy(q.items[0:], q.items[1:])
 	q.items[len(q.items)-1] = item{}
 	q.items = q.items[:len(q.items)-1]
 
-	return value, true
+	return v.value, true
+}
+
+// nextDuration returns duration for the next item.
+// If no items found it returns -1
+func (q *Queue) nextDuration() time.Duration {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+	if len(q.items) == 0 {
+		return -1
+	}
+	return -1 * time.Since(q.items[0].visibleAt)
 }
 
 func (q *Queue) PopCtx(ctx context.Context) (value interface{}, success bool) {
 	select {
 	case value := <-q.resultCh:
-		fmt.Println("got value")
 		return value, true
 	case <-ctx.Done():
-		fmt.Println("got pop deadline")
 		return nil, false
 	}
 }

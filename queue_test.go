@@ -40,13 +40,13 @@ func TestPop(t *testing.T) {
 		wg.Done()
 		wg.Wait()
 		got, success := q.Pop()
-		require.False(t, success)
+		assert.False(t, success)
 		assert.Nil(t, got)
 		close(ready)
 	}()
 
 	<-ready
-	time.Sleep(time.Second)
+	time.Sleep(time.Second + 100*time.Millisecond)
 	got, success := q.Pop()
 	require.True(t, success)
 	assert.Equal(t, item, got)
@@ -74,7 +74,7 @@ func TestPopCtx(t *testing.T) {
 		wg.Done()
 		wg.Wait()
 		got, success := q.PopCtx(ctx)
-		require.False(t, success)
+		assert.False(t, success)
 		assert.Nil(t, got)
 		close(ready)
 	}()
@@ -96,5 +96,82 @@ func TestPopCtxBlocking(t *testing.T) {
 	ended := time.Now()
 	require.True(t, success)
 	assert.Equal(t, "123", v)
-	assert.WithinDuration(t, now.Add(5*time.Second), ended, 20*time.Millisecond)
+	assert.WithinDuration(t, now, ended, 5*time.Second+100*time.Millisecond)
+}
+
+func TestInsertNotify(t *testing.T) {
+	q := Queue{
+		nextTimerChanged: make(chan time.Duration, 10),
+	}
+
+	q.Insert("1", time.Hour)
+	require.Len(t, q.nextTimerChanged, 1)
+
+	// at the end of the queue
+	q.Insert("2", 10*time.Hour)
+	require.Len(t, q.nextTimerChanged, 1)
+
+	// at the middle
+	q.Insert("3", 5*time.Hour)
+	require.Len(t, q.nextTimerChanged, 1)
+
+	// at the beginning
+	q.Insert("4", 30*time.Minute)
+	require.Len(t, q.nextTimerChanged, 2)
+}
+
+func TestNextDuration(t *testing.T) {
+	q := Queue{}
+	got := q.nextDuration()
+	assert.Equal(t, time.Duration(-1), got)
+	now := time.Now()
+	q.items = append(q.items, item{
+		value:     "1",
+		visibleAt: now.Add(time.Hour),
+	})
+	got = q.nextDuration()
+	assert.WithinDuration(t, now.Add(time.Hour), now.Add(got), 10*time.Millisecond)
+}
+
+func TestCollectEvents(t *testing.T) {
+	q := NewQueue()
+	q.Insert("1", time.Second)
+	q.Insert("2", time.Hour)
+	q.PopCtx(context.Background())
+	require.True(t, q.nextItemTimer.Stop(), "new timer must be created after each item expiration")
+}
+
+func TestManyElements(t *testing.T) {
+	q := NewQueue()
+	wg := sync.WaitGroup{}
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func(v int) {
+			defer wg.Done()
+			q.Insert(v, 3*time.Second)
+		}(i)
+	}
+	wg.Wait()
+	resultMap := make(map[int]struct{})
+	for i := 0; i < 10; i++ {
+		value, _ := q.PopCtx(context.Background())
+		v, ok := value.(int)
+		require.True(t, ok)
+		resultMap[v] = struct{}{}
+	}
+	assert.Len(t, resultMap, 10)
+}
+
+func TestPopItem(t *testing.T) {
+	q := Queue{
+		nextTimerChanged: make(chan time.Duration, 10),
+	}
+	q.Insert("1", 5*time.Second)
+	value, ok := q.popItem(false)
+	require.False(t, ok)
+	assert.Nil(t, value)
+	time.Sleep(5 * time.Second)
+	value, ok = q.popItem(false)
+	require.True(t, ok)
+	assert.Equal(t, "1", value)
 }
