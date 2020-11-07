@@ -2,7 +2,6 @@ package dqueue
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 )
@@ -51,7 +50,6 @@ func (q *Queue) collectEvents() {
 		case <-q.ctx.Done():
 			return
 		case <-q.nextItemTimer.C:
-			fmt.Println("triggered next item timer", time.Now().String())
 			if value, ok := q.popItem(false); ok {
 				q.resultCh <- value
 				q.nextItemTimer.Stop()
@@ -152,10 +150,8 @@ func (q *Queue) nextDuration() time.Duration {
 func (q *Queue) PopCtx(ctx context.Context) (value interface{}, success bool) {
 	select {
 	case value := <-q.resultCh:
-		fmt.Println("got value", time.Now().String())
 		return value, true
 	case <-ctx.Done():
-		fmt.Println("got pop deadline", time.Now().String())
 		return nil, false
 	}
 }
