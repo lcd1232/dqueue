@@ -18,8 +18,6 @@ type Queue struct {
 	cancelCtx context.CancelFunc
 
 	resultCh chan interface{}
-
-	listeners int
 }
 
 type item struct {
