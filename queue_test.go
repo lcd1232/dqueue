@@ -206,3 +206,21 @@ func TestStop(t *testing.T) {
 	q = NewQueue()
 	require.Error(t, q.Stop(ctx))
 }
+
+func TestCollectEventsCancel(t *testing.T) {
+	wg := sync.WaitGroup{}
+	ctx, cancel := context.WithCancel(context.Background())
+	q := Queue{
+		ctx:           ctx,
+		wg:            new(sync.WaitGroup),
+		nextItemTimer: time.NewTimer(-1),
+	}
+	q.wg.Add(1)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		q.collectEvents()
+	}()
+	cancel()
+	wg.Wait()
+}
