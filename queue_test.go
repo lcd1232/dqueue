@@ -197,3 +197,12 @@ func TestLength(t *testing.T) {
 	q.items = append(q.items, item{})
 	assert.Equal(t, 2, q.Length())
 }
+
+func TestStop(t *testing.T) {
+	q := NewQueue()
+	require.NoError(t, q.Stop(context.Background()))
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	q = NewQueue()
+	require.Error(t, q.Stop(ctx))
+}
