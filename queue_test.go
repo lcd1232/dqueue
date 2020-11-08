@@ -188,3 +188,12 @@ func TestChannel(t *testing.T) {
 		require.Fail(t, "context deadlined")
 	}
 }
+
+func TestLength(t *testing.T) {
+	q := Queue{}
+	assert.Equal(t, 0, q.Length())
+	q.items = append(q.items, item{})
+	assert.Equal(t, 1, q.Length())
+	q.items = append(q.items, item{})
+	assert.Equal(t, 2, q.Length())
+}

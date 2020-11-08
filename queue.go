@@ -176,3 +176,10 @@ func (q *Queue) Stop(ctx context.Context) error {
 		return ctx.Err()
 	}
 }
+
+// Length returns total items in queue.
+func (q *Queue) Length() int {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+	return len(q.items)
+}
