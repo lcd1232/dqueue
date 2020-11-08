@@ -1,6 +1,7 @@
 package dqueue
 
 import (
+	"container/list"
 	"context"
 	"sync"
 	"testing"
@@ -15,10 +16,10 @@ func TestInsert(t *testing.T) {
 	q.Insert("3", 3*time.Second)
 	q.Insert("2", 2*time.Second)
 	q.Insert("1", time.Second)
-	require.Len(t, q.items, 3)
-	assert.Equal(t, "1", q.items[0].value)
-	assert.Equal(t, "2", q.items[1].value)
-	assert.Equal(t, "3", q.items[2].value)
+	require.Equal(t, 3, q.items.Len())
+	assert.Equal(t, "1", q.items.Front().Value.(item).value)
+	assert.Equal(t, "2", q.items.Front().Next().Value.(item).value)
+	assert.Equal(t, "3", q.items.Back().Value.(item).value)
 }
 
 func TestPop(t *testing.T) {
@@ -50,7 +51,7 @@ func TestPop(t *testing.T) {
 	got, success := q.Pop()
 	require.True(t, success)
 	assert.Equal(t, item, got)
-	assert.Len(t, q.items, 0)
+	assert.Equal(t, 0, q.items.Len())
 }
 
 func TestPopCtx(t *testing.T) {
@@ -85,7 +86,7 @@ func TestPopCtx(t *testing.T) {
 	got, success := q.PopCtx(ctx)
 	require.True(t, success)
 	assert.Equal(t, item, got)
-	assert.Len(t, q.items, 0)
+	assert.Equal(t, 0, q.items.Len())
 }
 
 func TestPopCtxBlocking(t *testing.T) {
@@ -102,30 +103,37 @@ func TestPopCtxBlocking(t *testing.T) {
 func TestInsertNotify(t *testing.T) {
 	q := Queue{
 		nextTimerChanged: make(chan time.Duration, 10),
+		items:            list.New(),
 	}
 
 	q.Insert("1", time.Hour)
-	require.Len(t, q.nextTimerChanged, 1)
+	require.Equal(t, 1, q.items.Len())
+	assert.Equal(t, "1", q.items.Front().Value.(item).value)
 
 	// at the end of the queue
 	q.Insert("2", 10*time.Hour)
-	require.Len(t, q.nextTimerChanged, 1)
+	require.Equal(t, 2, q.items.Len())
+	assert.Equal(t, "2", q.items.Back().Value.(item).value)
 
 	// at the middle
 	q.Insert("3", 5*time.Hour)
-	require.Len(t, q.nextTimerChanged, 1)
+	require.Equal(t, 3, q.items.Len())
+	assert.Equal(t, "3", q.items.Front().Next().Value.(item).value)
 
 	// at the beginning
 	q.Insert("4", 30*time.Minute)
-	require.Len(t, q.nextTimerChanged, 2)
+	require.Equal(t, 4, q.items.Len())
+	assert.Equal(t, "4", q.items.Front().Value.(item).value)
 }
 
 func TestNextDuration(t *testing.T) {
-	q := Queue{}
+	q := Queue{
+		items: list.New(),
+	}
 	got := q.nextDuration()
 	assert.Equal(t, time.Duration(-1), got)
 	now := time.Now()
-	q.items = append(q.items, item{
+	q.items.PushBack(item{
 		value:     "1",
 		visibleAt: now.Add(time.Hour),
 	})
@@ -165,6 +173,7 @@ func TestManyElements(t *testing.T) {
 func TestPopItem(t *testing.T) {
 	q := Queue{
 		nextTimerChanged: make(chan time.Duration, 10),
+		items:            list.New(),
 	}
 	q.Insert("1", 5*time.Second)
 	value, ok := q.popItem(false)
@@ -190,11 +199,13 @@ func TestChannel(t *testing.T) {
 }
 
 func TestLength(t *testing.T) {
-	q := Queue{}
+	q := Queue{
+		items: list.New(),
+	}
 	assert.Equal(t, 0, q.Length())
-	q.items = append(q.items, item{})
+	q.items.PushBack(item{})
 	assert.Equal(t, 1, q.Length())
-	q.items = append(q.items, item{})
+	q.items.PushBack(item{})
 	assert.Equal(t, 2, q.Length())
 }
 
@@ -223,4 +234,15 @@ func TestCollectEventsCancel(t *testing.T) {
 	}()
 	cancel()
 	wg.Wait()
+}
+
+func TestClearEvents(t *testing.T) {
+	q := Queue{
+		nextTimerChanged: make(chan time.Duration, 10),
+	}
+	for i := 0; i < 10; i++ {
+		q.nextTimerChanged <- 0
+	}
+	q.clearEvents()
+	assert.Len(t, q.nextTimerChanged, 0)
 }
