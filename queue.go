@@ -158,7 +158,7 @@ func (q *Queue) PopCtx(ctx context.Context) (value interface{}, success bool) {
 
 // Channel returns channel which can be used to retrieve value from queue.
 func (q *Queue) Channel() <-chan interface{} {
-	return nil
+	return q.resultCh
 }
 
 func (q *Queue) Stop(ctx context.Context) error {
