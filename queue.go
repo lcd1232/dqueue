@@ -176,3 +176,8 @@ func (q *Queue) Stop(ctx context.Context) error {
 		return ctx.Err()
 	}
 }
+
+//
+func (q *Queue) Length() int {
+	return 0
+}
