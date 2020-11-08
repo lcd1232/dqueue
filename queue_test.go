@@ -175,3 +175,16 @@ func TestPopItem(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "1", value)
 }
+
+func TestChannel(t *testing.T) {
+	q := NewQueue()
+	q.Insert("1", 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
+	defer cancel()
+	select {
+	case v := <-q.Channel():
+		assert.Equal(t, "1", v)
+	case <-ctx.Done():
+		require.Fail(t, "context deadlined")
+	}
+}
