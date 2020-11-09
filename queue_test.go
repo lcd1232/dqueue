@@ -146,6 +146,7 @@ func TestCollectEvents(t *testing.T) {
 	q.Insert("1", time.Second)
 	q.Insert("2", time.Hour)
 	q.PopCtx(context.Background())
+	time.Sleep(10 * time.Millisecond)
 	require.True(t, q.nextItemTimer.Stop(), "new timer must be created after each item expiration")
 }
 
