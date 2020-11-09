@@ -99,7 +99,7 @@ func (q *Queue) Insert(value interface{}, delay time.Duration) {
 			q.mutex.Lock()
 			q.items.InsertBefore(v, e)
 			q.mutex.Unlock()
-			if e.Prev() == nil {
+			if e.Prev() == q.items.Front() {
 				q.notify(delay)
 			}
 
