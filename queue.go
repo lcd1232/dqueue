@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+const maxDuration = time.Duration(1<<63 - 1)
+
 type Queue struct {
 	mutex            sync.RWMutex
 	items            *list.List
@@ -31,7 +33,7 @@ func NewQueue() *Queue {
 	wg.Add(1)
 
 	q := &Queue{
-		nextItemTimer:    time.NewTimer(-1), // will create timer with maximum possible delay
+		nextItemTimer:    time.NewTimer(maxDuration), // will create timer with maximum possible delay
 		nextTimerChanged: make(chan time.Duration, 1),
 		ctx:              ctx,
 		cancelCtx:        cancel,
@@ -150,12 +152,12 @@ func (q *Queue) popItem(noLock bool) (interface{}, bool) {
 }
 
 // nextDuration returns duration for the next item.
-// If no items found it returns -1
+// If no items found it returns maximum possible duration
 func (q *Queue) nextDuration() time.Duration {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 	if q.items.Len() == 0 {
-		return -1
+		return maxDuration
 	}
 	e := q.items.Front()
 	v := e.Value.(item)

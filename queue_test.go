@@ -224,7 +224,7 @@ func TestCollectEventsCancel(t *testing.T) {
 	q := Queue{
 		ctx:           ctx,
 		wg:            new(sync.WaitGroup),
-		nextItemTimer: time.NewTimer(-1),
+		nextItemTimer: time.NewTimer(maxDuration),
 	}
 	q.wg.Add(1)
 	wg.Add(1)
