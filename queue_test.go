@@ -176,8 +176,11 @@ func TestPopItem(t *testing.T) {
 		nextTimerChanged: make(chan time.Duration, 10),
 		items:            list.New(),
 	}
-	q.Insert("1", 5*time.Second)
 	value, ok := q.popItem(false)
+	require.False(t, ok)
+	assert.Nil(t, value)
+	q.Insert("1", 5*time.Second)
+	value, ok = q.popItem(false)
 	require.False(t, ok)
 	assert.Nil(t, value)
 	time.Sleep(5 * time.Second)
