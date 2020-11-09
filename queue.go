@@ -1,14 +1,17 @@
 package dqueue
 
 import (
+	"container/list"
 	"context"
 	"sync"
 	"time"
 )
 
+const maxDuration = time.Duration(1<<63 - 1)
+
 type Queue struct {
 	mutex            sync.RWMutex
-	items            []item
+	items            *list.List
 	nextItemTimer    *time.Timer
 	nextTimerChanged chan time.Duration
 
@@ -30,12 +33,13 @@ func NewQueue() *Queue {
 	wg.Add(1)
 
 	q := &Queue{
-		nextItemTimer:    time.NewTimer(-1), // will create timer with maximum possible delay
-		nextTimerChanged: make(chan time.Duration, 10),
+		nextItemTimer:    time.NewTimer(maxDuration), // will create timer with maximum possible delay
+		nextTimerChanged: make(chan time.Duration, 1),
 		ctx:              ctx,
 		cancelCtx:        cancel,
 		wg:               &wg,
 		resultCh:         make(chan interface{}),
+		items:            list.New(),
 	}
 
 	go q.collectEvents()
@@ -52,12 +56,24 @@ func (q *Queue) collectEvents() {
 		case <-q.nextItemTimer.C:
 			if value, ok := q.popItem(false); ok {
 				q.resultCh <- value
+				q.clearEvents()
 				q.nextItemTimer.Stop()
 				q.nextItemTimer = time.NewTimer(q.nextDuration())
 			}
 		case d := <-q.nextTimerChanged:
 			q.nextItemTimer.Stop()
 			q.nextItemTimer = time.NewTimer(d)
+		}
+	}
+}
+
+// clearEvents read all values from channel
+func (q *Queue) clearEvents() {
+	for {
+		select {
+		case <-q.nextTimerChanged:
+		default:
+			return
 		}
 	}
 }
@@ -70,23 +86,22 @@ func (q *Queue) Insert(value interface{}, delay time.Duration) {
 		visibleAt: visibleAt,
 	}
 
-	if len(q.items) == 0 {
-		q.items = append(q.items, v)
+	if q.Length() == 0 {
+		q.items.PushFront(v)
 		q.notify(delay)
 
 		return
 	}
 
 	q.mutex.RLock()
-	for i := range q.items {
-		if q.items[i].visibleAt.After(visibleAt) || q.items[i].visibleAt.Equal(visibleAt) {
+	for e := q.items.Front(); e != nil; e = e.Next() {
+		elemValue := e.Value.(item)
+		if elemValue.visibleAt.After(visibleAt) || elemValue.visibleAt.Equal(visibleAt) {
 			q.mutex.RUnlock()
 			q.mutex.Lock()
-			q.items = append(q.items, item{})
-			copy(q.items[i+1:], q.items[i:])
-			q.items[i] = v
+			q.items.InsertBefore(v, e)
 			q.mutex.Unlock()
-			if i == 0 {
+			if e.Prev() == q.items.Front() {
 				q.notify(delay)
 			}
 
@@ -97,10 +112,11 @@ func (q *Queue) Insert(value interface{}, delay time.Duration) {
 
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
-	q.items = append(q.items, v)
+	q.items.PushBack(v)
 }
 
 func (q *Queue) notify(delay time.Duration) {
+	q.clearEvents()
 	q.nextTimerChanged <- delay
 }
 
@@ -120,31 +136,32 @@ func (q *Queue) popItem(noLock bool) (interface{}, bool) {
 		defer q.mutex.Unlock()
 	}
 
-	if len(q.items) == 0 {
+	if q.items.Len() == 0 {
 		return nil, false
 	}
 
-	v := q.items[0]
+	e := q.items.Front()
+	v := e.Value.(item)
 	now := time.Now()
 	if v.visibleAt.After(now) {
 		return nil, false
 	}
-	copy(q.items[0:], q.items[1:])
-	q.items[len(q.items)-1] = item{}
-	q.items = q.items[:len(q.items)-1]
+	q.items.Remove(e)
 
 	return v.value, true
 }
 
 // nextDuration returns duration for the next item.
-// If no items found it returns -1
+// If no items found it returns maximum possible duration
 func (q *Queue) nextDuration() time.Duration {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
-	if len(q.items) == 0 {
-		return -1
+	if q.items.Len() == 0 {
+		return maxDuration
 	}
-	return -1 * time.Since(q.items[0].visibleAt)
+	e := q.items.Front()
+	v := e.Value.(item)
+	return -1 * time.Since(v.visibleAt)
 }
 
 func (q *Queue) PopCtx(ctx context.Context) (value interface{}, success bool) {
@@ -181,5 +198,5 @@ func (q *Queue) Stop(ctx context.Context) error {
 func (q *Queue) Length() int {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
-	return len(q.items)
+	return q.items.Len()
 }
