@@ -131,7 +131,7 @@ func TestNextDuration(t *testing.T) {
 		items: list.New(),
 	}
 	got := q.nextDuration()
-	assert.Equal(t, time.Duration(-1), got)
+	assert.Equal(t, maxDuration, got)
 	now := time.Now()
 	q.items.PushBack(item{
 		value:     "1",
